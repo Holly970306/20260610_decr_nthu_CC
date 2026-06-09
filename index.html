@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>永續研究之 AI 賦能 · 網頁式簡報</title>
+<style>
+  :root{
+    --cream:#FBF6EF; --ink:#2E211A; --clay:#C26B41; --clay-d:#A8542F;
+    --sand:#EADDCB; --muted:#8A7866; --danger:#B0472F;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:'Noto Sans TC','PingFang TC','Microsoft JhengHei',system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(194,107,65,.14), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(206,155,46,.12), transparent 55%),
+      var(--cream);
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:24px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{
+    width:100%; max-width:420px; background:#fff;
+    border:1px solid var(--sand); border-radius:18px;
+    box-shadow:0 18px 50px -20px rgba(74,56,45,.35), 0 4px 14px -8px rgba(74,56,45,.2);
+    padding:40px 36px 32px; position:relative; overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,var(--clay),var(--clay-d));}
+  .mark{width:54px;height:54px;border-radius:13px;background:linear-gradient(135deg,var(--clay),var(--clay-d));
+    display:flex;align-items:center;justify-content:center;margin-bottom:22px;
+    box-shadow:0 8px 20px -8px rgba(168,84,47,.6);}
+  .mark span{color:var(--cream);font-weight:800;font-size:20px;letter-spacing:1px;}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--clay-d);}
+  h1{margin:8px 0 6px;font-size:24px;font-weight:800;letter-spacing:-.01em;line-height:1.25;}
+  .sub{margin:0 0 26px;font-size:14px;line-height:1.7;color:var(--muted);}
+  label{display:block;font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;letter-spacing:.02em;}
+  .field{display:flex;gap:8px;}
+  input[type=password]{
+    flex:1;min-width:0;font-family:inherit;font-size:15px;color:var(--ink);
+    padding:12px 14px;border:1.5px solid var(--sand);border-radius:10px;background:var(--cream);
+    outline:none;transition:border-color .15s, box-shadow .15s;
+  }
+  input[type=password]:focus{border-color:var(--clay);box-shadow:0 0 0 3px rgba(194,107,65,.22);}
+  button{
+    font-family:inherit;font-size:15px;font-weight:700;color:#fff;cursor:pointer;
+    padding:12px 20px;border:none;border-radius:10px;white-space:nowrap;
+    background:linear-gradient(180deg,var(--clay),var(--clay-d));
+    box-shadow:0 6px 16px -8px rgba(168,84,47,.7);transition:filter .15s, transform .05s;
+  }
+  button:hover{filter:brightness(1.05);}
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:.6;cursor:default;}
+  .msg{margin-top:14px;font-size:13px;min-height:18px;line-height:1.5;}
+  .msg.err{color:var(--danger);font-weight:600;}
+  .msg.info{color:var(--muted);}
+  .foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--sand);font-size:12px;color:var(--muted);line-height:1.7;}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(194,107,65,.3);border-top-color:var(--clay);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+  <form class="card" id="gate" autocomplete="off">
+    <div class="mark"><span>永續</span></div>
+    <div class="eyebrow">AI-Empowered Sustainability Research</div>
+    <h1>永續研究之 AI 賦能</h1>
+    <p class="sub">這份網頁式簡報需要密碼才能瀏覽。<br>請輸入授課老師提供的密碼。</p>
+    <label for="pw">瀏覽密碼</label>
+    <div class="field">
+      <input type="password" id="pw" placeholder="請輸入密碼" autofocus>
+      <button type="submit" id="go">進入</button>
+    </div>
+    <div class="msg info" id="msg" aria-live="polite"></div>
+    <div class="foot">清大環文系在職專班 ｜ 線上連線課程<br>內容已加密保護，僅供課程學員瀏覽。</div>
+  </form>
+
+  <script>
+    var form = document.getElementById('gate');
+    var pw = document.getElementById('pw');
+    var go = document.getElementById('go');
+    var msg = document.getElementById('msg');
+    var SS_KEY = 'wt_pw_ok';
+
+    function setMsg(t, cls){ msg.className = 'msg ' + (cls||'info'); msg.innerHTML = t; }
+
+    function b64ToBytes(b64){
+      var bin = atob(b64);
+      var len = bin.length;
+      var bytes = new Uint8Array(len);
+      for (var i=0;i<len;i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    async function decryptWith(pwd){
+      var res = await fetch('content.enc', {cache:'force-cache'});
+      if(!res.ok) throw new Error('fetch');
+      var b64 = (await res.text()).trim();
+      var all = b64ToBytes(b64);
+      var salt = all.slice(0,16), iv = all.slice(16,28), ct = all.slice(28);
+      var encU = new TextEncoder();
+      var baseKey = await crypto.subtle.importKey('raw', encU.encode(pwd), 'PBKDF2', false, ['deriveKey']);
+      var key = await crypto.subtle.deriveKey(
+        {name:'PBKDF2', salt:salt, iterations:150000, hash:'SHA-256'},
+        baseKey, {name:'AES-GCM', length:256}, false, ['decrypt']);
+      var ptBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ct);
+      return new TextDecoder().decode(ptBuf);
+    }
+
+    function reveal(html){
+      try { document.open(); document.write(html); document.close(); }
+      catch(e){ document.documentElement.innerHTML = html; }
+    }
+
+    var busy = false;
+    async function attempt(pwd, silent){
+      if(busy) return;
+      busy = true; go.disabled = true; pw.disabled = true;
+      setMsg('<span class="spin"></span>解密中，請稍候…', 'info');
+      try{
+        var html = await decryptWith(pwd);
+        try{ sessionStorage.setItem(SS_KEY, pwd); }catch(e){}
+        reveal(html);
+      }catch(err){
+        busy = false; go.disabled = false; pw.disabled = false;
+        if(silent){ setMsg('', 'info'); pw.focus(); return; }
+        setMsg('密碼錯誤，請再試一次。', 'err');
+        pw.value = ''; pw.focus();
+      }
+    }
+
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var v = pw.value.trim();
+      if(!v){ setMsg('請先輸入密碼。', 'err'); pw.focus(); return; }
+      attempt(v, false);
+    });
+
+    // 同一個分頁內已驗證過 → 自動解鎖
+    (function(){
+      var saved = null;
+      try{ saved = sessionStorage.getItem(SS_KEY); }catch(e){}
+      if(saved){ attempt(saved, true); }
+    })();
+  </script>
+</body>
+</html>
